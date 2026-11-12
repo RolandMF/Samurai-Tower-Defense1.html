@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Samurai Tower Defense</title>
+<style>
+:root{--bg:#f4efe6;--fg:#1c1c1c;--muted:#6b645a;--card:#e6dccb;--accent:#b3202a;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15130f;--fg:#efe8da;--muted:#a39b8c;--card:#2a251d;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#15130f;--fg:#efe8da;--muted:#a39b8c;--card:#2a251d;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column;align-items:center;padding:14px}
+h1{font-size:1.25rem;margin:0 0 6px;color:var(--accent)}
+.bar{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;font-weight:600;margin-bottom:8px}
+.tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:10px 0}
+button{background:var(--card);color:var(--fg);border:2px solid var(--accent);border-radius:8px;padding:8px 12px;font:inherit;font-size:.9rem;cursor:pointer}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.on{background:var(--accent);color:#fff}
+canvas{max-width:100%;height:auto;border:3px solid var(--accent);border-radius:8px;cursor:crosshair}
+p{margin:4px 0;color:var(--muted);font-size:.85rem;text-align:center}
+.ic{width:30px;height:30px;border-radius:50%;padding:0;font-weight:800;background:var(--accent);color:#fff;line-height:1}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
+#modal[hidden]{display:none}
+.box{background:var(--bg);color:var(--fg);border:3px solid var(--accent);border-radius:10px;max-width:640px;max-height:85vh;overflow:auto;padding:16px 20px;position:relative;font-size:.92rem}
+.box h2{margin:0 0 8px;color:var(--accent);font-size:1.15rem}.box h3{margin:14px 0 4px;font-size:1rem}.box ul{margin:0;padding-left:18px}.box li{margin:3px 0}
+.box .ic{position:absolute;top:10px;right:10px}
+#home{max-width:640px;width:100%}.cards{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:10px 0}
+.card{display:flex;flex-direction:column;gap:4px;min-width:170px;padding:14px;text-align:center}.card b{font-size:1.2rem;color:var(--accent)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--muted);font-size:.9rem}
+body.playing{padding:0;overflow:hidden;height:100vh;display:block}
+body.playing h1{display:none}
+#gm{position:fixed;inset:0;display:flex;flex-direction:column;gap:4px;box-sizing:border-box;padding:calc(6px + env(safe-area-inset-top,0px)) 6px calc(6px + env(safe-area-inset-bottom,0px));background:var(--bg);z-index:1}
+#gm[hidden]{display:none}
+#cv{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+#gm .bar{flex:0 0 auto;margin:0;align-items:center}
+#gm .bar span{min-width:64px;text-align:center}
+#gm .tools{flex:0 0 auto;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;justify-content:safe center;margin:0}
+#gm .tools button{white-space:nowrap;flex:0 0 auto}
+#bUp,#bSell{min-width:118px}#bWave{min-width:160px}
+#gm>p:not(#info){display:none}
+#info{flex:0 0 auto;height:2.7em;overflow:hidden;margin:0 6px}
+</style>
+</head>
+<body>
+<h1>⚔️ Samurai Tower Defense</h1>
+<div id="modal" hidden><div class="box"><button id="mClose" class="ic" title="Tutup">×</button>
+<h2>❗ Informasi</h2>
+<h3>Zombie</h3><ul>
+<li>🟢 <b>Normal</b>: HP dan kecepatan standar.</li>
+<li>🟠 <b>Cepat</b> (mulai gelombang 2): kecil, rapuh, tapi ngebut.</li>
+<li>🔵 <b>Tebal &amp; lambat</b> (gelombang 3): HP besar, kalau tembus ngurangin 2 nyawa.</li>
+<li>🟣 <b>Hidden</b> (gelombang 4): transparan dan <b>hanya bisa diserang kalau ada tower dengan deteksi 👁 di dekatnya</b>, yaitu <b>Ashigaru Lv 3 ke atas</b>. Begitu terdeteksi, semua tower dan prajurit Daimyo bisa menyerangnya.</li>
+<li>💣 <b>Bomber</b> (gelombang 4): oranye bersumbu. Kalau mati, semua tower yang sangat dekat (radius ±55 px) kena <b>stun ⚡ 2,5 detik</b> (Daimyo berhenti memanggil pasukan). Bunuh dari jauh!</li>
+<li>👹 <b>Miniboss</b> (tiap 5 gelombang) dan <b>Mega Boss</b> (tiap 10 gelombang): HP besar, ngamuk saat HP tinggal separuh (Mega ngamuk lagi di 25%). Kalau tembus ngurangin 3 / 6 nyawa.</li></ul>
+<h3>Zombie khusus Hard &amp; Insane</h3><ul><li>🛡 <b>Berzirah</b> (Hard+): damage yang masuk dikurangi.</li><li>💚 <b>Regenerator</b> (Hard+): HP pulih pelan-pelan.</li><li>🩸 <b>Pembelah</b> (Insane): pecah jadi dua zombie kecil yang cepat saat mati.</li><li>➕ <b>Medik</b> (Insane): menyembuhkan zombie di sekitarnya.</li></ul>
+<h3>Tower</h3><ul>
+<li>💥 <b>Ōzutsu</b>: meriam, ledakan area dengan damage besar tapi lambat.</li>
+<li>🧘 <b>Sōhei</b>: biksu perang, tidak menyerang tapi memperlambat semua zombie di sekitarnya.</li>
+<li>🔫 <b>Ashigaru</b>: matchlock jarak jauh. Lv 3+ bisa mendeteksi hidden.</li>
+<li>🔱 <b>Yari Ashigaru</b>: tombak jarak menengah, tusukannya menembus beberapa zombie yang segaris.</li>
+<li>⚔️ <b>Shogun</b>: melee, damage besar, satu tebasan kena beberapa musuh. Topeng samurainya berubah tiap level. Tidak bisa mendeteksi hidden.</li>
+<li>🏯 <b>Daimyo</b>: tidak menyerang langsung. Dia memanggil prajurit dari <b>garis finish</b> yang berjalan maju. Kalau bertabrakan dengan zombie, yang HP-nya lebih kecil langsung lenyap dan yang menang kehilangan HP sebesar HP lawannya. Makin tinggi level: pasukan makin banyak, kuat, dan cepat dipanggil. Prajurit tidak bisa menabrak hidden yang belum terdeteksi.</li></ul>
+<h3>🥷 Jenderal (gratis)</h3><ul><li>Satu Jenderal sudah ada dari awal. <b>Klik / ketuk jalan</b> untuk menyuruhnya jalan (atau pakai panah / WASD). Dia hanya bisa lewat jalan, otomatis menebas zombie di dekatnya, dan bisa di-upgrade (klik dia atau tombol 🥷). Lv 3+ bisa deteksi hidden. Awas Bomber: kena stun dia berhenti menyerang.</li><li>Tiap mode punya peta sendiri. Insane punya <b>2 jalur</b> yang bersilangan; Jenderal pindah jalur lewat persimpangan.</li></ul>
+<h3>Ekonomi &amp; tombol</h3><ul>
+<li>Tiap gelombang dimulai kamu dapat bonus koin. Pakai <b>⏩ Skip Wave</b> kalau butuh uang instan, tapi zombie dua gelombang akan numpuk.</li>
+<li><b>🔁 Auto</b>: gelombang berikutnya mulai sendiri 3 detik setelah gelombang selesai.</li>
+<li>Jual tower mengembalikan 50% dari total modal. Tekan Esc buat batal pasang.</li><li><b>🚀 Kecepatan</b>: ganti 1x / 2x. <b>🎵</b>: musik latar on/off, <b>🔊</b>: efek suara on/off.</li></ul>
+</div></div>
+<div id="home"><p>💰 Koin pemain: <b id="pc">0</b></p>
+<h3>Pilih tingkat kesulitan</h3>
+<div class="cards">
+<button class="card" data-d="easy"><b>Easy</b><span>30 gelombang</span><span>Hadiah 50 koin</span><span>Zombie desa</span></button>
+<button class="card" data-d="hard"><b>Hard</b><span>35 gelombang</span><span>Hadiah 100 koin</span><span>+ Berzirah &amp; Regenerator</span></button>
+<button class="card" data-d="insane"><b>Insane</b><span>50 gelombang</span><span>Hadiah 200 koin</span><span>+ Pembelah &amp; Medik</span><span>🛣 2 jalur zombie</span></button></div>
+<div class="cards"><button id="bCont" class="card" hidden></button></div>
+<h3>🛒 Shop</h3><div id="shopList"></div>
+<p>Awal main cuma punya Ashigaru. Menang (atau bertahan lama) buat kumpulin koin pemain dan beli tower lain.</p>
+<p><button id="hReset">⚠ Reset progres</button></p></div>
+<div id="gm" hidden>
+<div class="bar"><span>💰 <b id="gold"></b></span><span>❤️ <b id="lives"></b></span><span>🌊 Gelombang <b id="wave"></b></span><button id="bInfo" class="ic" title="Informasi" aria-label="Informasi">!</button><button id="bFs" class="ic" title="Layar penuh" aria-label="Layar penuh">⛶</button></div>
+<div id="cv"><canvas id="g"></canvas></div>
+<div class="tools">
+  <button id="bGen">🥷 Jenderal</button>
+  <button id="bBuild">Pasang Ashigaru (50)</button>
+  <button id="bBuild2">Pasang Shogun (120)</button>
+  <button id="bBuild3">Pasang Yari Ashigaru</button>
+  <button id="bBuild4">Pasang Daimyo</button>
+  <button id="bBuild5">Pasang Ōzutsu</button>
+  <button id="bBuild6">Pasang Sōhei</button>
+  <button id="bWave">Mulai Gelombang</button>
+  <button id="bUp" disabled>Upgrade</button>
+  <button id="bSell" disabled>Jual</button>
+  <button id="bSkip" disabled>⏩ Skip Wave</button>
+  <button id="bMenu">🏠 Menu</button>
+  <button id="bAuto">🔁 Auto: OFF</button>
+  <button id="bSpeed">🚀 Kecepatan 1x</button>
+  <button id="bMute" title="Suara">🔊</button>
+  <button id="bMusic" title="Musik">🎵</button>
+  <button id="bSave">💾 Save</button>
+  <button id="bReplay">🔄 Replay</button>
+  <button id="bReset">⚠ Reset</button>
+</div>
+<p>Zombie ungu transparan = <b>tersembunyi</b> (mulai gelombang 4). Baru bisa diserang kalau ada tower dengan deteksi 👁 di dekatnya: Ashigaru Lv 3 ke atas.</p>
+<p>Zombie oranye bawa bom: kalau mati, tower di sekitarnya kena <b>stun</b> ⚡ sekitar 3 detik.</p>
+<p id="info">Pasang tower di luar jalan. Klik jalan / panah / WASD = gerakkan Jenderal 🥷. Klik tower/Jenderal = upgrade. Esc = batal.</p>
+</div>
+<script>
+const c=document.getElementById('g'),x=c.getContext('2d'),W=800,H=500;c.width=W;c.height=H;
+const $=id=>document.getElementById(id);
+// Suara (disintesis lewat WebAudio, tanpa file)
+let AC=null,muted=false,lastShot=0;
+function tone(f,d,type,v,f2,at){const t=AC.currentTime+(at||0),o=AC.createOscillator(),gn=AC.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);gn.gain.setValueAtTime(v,t);gn.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(gn);gn.connect(AC.destination);o.start(t);o.stop(t+d)}
+function noise(d,v){const n=Math.floor(AC.sampleRate*d),b=AC.createBuffer(1,n,AC.sampleRate),a=b.getChannelData(0);for(let i=0;i<n;i++)a[i]=(Math.random()*2-1)*(1-i/n);const s=AC.createBufferSource(),gn=AC.createGain();s.buffer=b;gn.gain.value=v;s.connect(gn);gn.connect(AC.destination);s.start()}
+function snd(k,lv){
+  if(muted)return;
+  try{
+    getAC();
+    if(AC.state==='suspended')AC.resume();
+    if(k==='shot'){if(AC.currentTime-lastShot<.04)return;lastShot=AC.currentTime;noise(.15+lv*.03,.18+lv*.05);tone(150-lv*18,.15,'square',.12,40)}
+    else if(k==='cannon'){noise(.3,.4);tone(90,.25,'sawtooth',.3,40)}
+    else if(k==='summon'){tone(200,.12,'square',.14,120);tone(300,.2,'triangle',.16,0,.12)}
+    else if(k==='stab'){noise(.06,.2);tone(700-lv*60,.1,'square',.1,200)}
+    else if(k==='boom'){noise(.5,.5);tone(80,.5,'sawtooth',.3,30)}
+    else if(k==='rage'){tone(70,.6,'sawtooth',.3,140)}
+    else if(k==='slash'){noise(.12,.25);tone(520-lv*50,.12,'sawtooth',.14,120)}
+    else if(k==='kill')tone(320,.15,'triangle',.15,120);
+    else if(k==='leak')tone(110,.4,'sawtooth',.22,50);
+    else if(k==='build'){tone(420,.08,'square',.1);tone(630,.1,'square',.1,0,.08)}
+    else if(k==='up'){tone(440,.1,'triangle',.18);tone(554,.1,'triangle',.18,0,.1);tone(659,.18,'triangle',.2,0,.2)}
+    else if(k==='sell')tone(520,.12,'triangle',.15,240);
+    else if(k==='wave'){tone(90,.3,'sawtooth',.25,60);tone(90,.3,'sawtooth',.25,60,.35)}
+    else if(k==='over')tone(300,1,'sawtooth',.25,45);
+  }catch(e){}
+}
+$('bMute').onclick=()=>{muted=!muted;$('bMute').textContent=muted?'🔇':'🔊'};
+
+// ===== MUSIK LATAR =====
+// CATATAN: musik dibuat otomatis lewat WebAudio (tanpa file) memakai skala khas Jepang. Ada 3 suasana: tenang (menu/jeda), perang, bos.
+let speed=1;   // kecepatan game: 1 atau 2
+// CATATAN: tombol kecepatan: klik untuk ganti 1x <-> 2x.
+$('bSpeed').onclick=()=>{speed=speed===1?2:1;$('bSpeed').textContent='🚀 Kecepatan '+speed+'x';$('bSpeed').classList.toggle('on',speed===2)};
+// CATATAN: getAC = ambil (atau buat) mesin suara browser. Dipakai efek suara dan musik.
+function getAC(){AC=AC||new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();return AC}
+const MODES={
+  calm:{bpm:78,sc:[0,2,3,7,8],root:110,dens:.5,drum:null,prog:[0,4,3,0],wave:'triangle',dec:.9},
+  battle:{bpm:112,sc:[0,2,3,7,8],root:110,dens:.75,drum:[2,0,0,0,0,0,1,0,2,0,0,1,0,0,1,0],prog:[0,4,3,0],wave:'sawtooth',dec:.35},
+  boss:{bpm:132,sc:[0,1,5,7,8],root:98,dens:.85,drum:[2,0,1,0,2,0,1,1,2,0,1,0,2,1,2,1],prog:[0,4,3,1],wave:'sawtooth',dec:.3}
+};
+const M={on:true,mode:'calm',step:0,next:0,ph:null,rep:0,gain:null};   // keadaan mesin musik
+// CATATAN: freq = ubah nomor nada (derajat skala) jadi frekuensi suara (Hz). Nomor di luar 0-4 otomatis naik/turun oktaf.
+function freq(md,deg,base){const n=md.sc.length,o=Math.floor(deg/n),i=((deg%n)+n)%n;return base*Math.pow(2,(md.sc[i]+12*o)/12)}
+// CATATAN: note = bunyikan satu nada. Filter dibuat meredup cepat supaya terdengar seperti petikan shamisen/koto.
+function note(f,t,dur,vol,type,cut){const o=AC.createOscillator(),fl=AC.createBiquadFilter(),gn=AC.createGain();o.type=type;o.frequency.value=f;fl.type='lowpass';fl.frequency.setValueAtTime(cut,t);fl.frequency.exponentialRampToValueAtTime(300,t+dur);gn.gain.setValueAtTime(.0001,t);gn.gain.linearRampToValueAtTime(vol,t+.01);gn.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(fl);fl.connect(gn);gn.connect(M.gain);o.start(t);o.stop(t+dur+.05)}
+// CATATAN: taiko = suara drum Jepang (dentuman rendah). kuat=2 lebih keras dari kuat=1.
+function taiko(t,kuat){const o=AC.createOscillator(),gn=AC.createGain(),v=kuat===2?.55:.3;o.frequency.setValueAtTime(130,t);o.frequency.exponentialRampToValueAtTime(42,t+.25);gn.gain.setValueAtTime(v,t);gn.gain.exponentialRampToValueAtTime(.001,t+.3);o.connect(gn);gn.connect(M.gain);o.start(t);o.stop(t+.32)}
+// CATATAN: newPhrase = bikin 1 frasa melodi (4 birama) acak tapi tetap enak didengar: nadanya melangkah pelan naik-turun. null = diam.
+function newPhrase(md){const p=[];let d=0;for(let i=0;i<32;i++){d=Math.max(-2,Math.min(6,d+[-2,-1,-1,0,1,1,2][Math.random()*7|0]));p.push(Math.random()<md.dens?d:null)}p[0]=0;return p}
+// CATATAN: playStep = mainkan 1 langkah (1/16 not): nada panjang latar, bass, drum, lalu melodi. Tiap frasa diputar 2x baru ganti yang baru.
+function playStep(md,s,t){
+  const i=s%16,pos=s%64,pr=md.prog[pos>>4],sp=60/md.bpm;
+  if(pos===0){if(!M.ph||M.rep>=2){M.ph=newPhrase(md);M.rep=0}M.rep++}
+  if(i===0)for(const k of[2,3]){const o=AC.createOscillator(),gn=AC.createGain();o.frequency.value=freq(md,pr,md.root)*k;gn.gain.setValueAtTime(.0001,t);gn.gain.linearRampToValueAtTime(.05,t+sp*1.5);gn.gain.linearRampToValueAtTime(.0001,t+sp*4);o.connect(gn);gn.connect(M.gain);o.start(t);o.stop(t+sp*4+.1)}
+  if(i%8===0)note(freq(md,pr,md.root),t,sp*1.8,.22,'triangle',900);   // bass
+  if(md.drum&&md.drum[i])taiko(t,md.drum[i]);
+  if(i%2===0){const d=M.ph[pos>>1];if(d!=null)note(freq(md,d,md.root*4),t,sp*md.dec*2,.16,md.wave,3200)}   // melodi
+}
+// CATATAN: pickMode = pilih suasana musik. Menu/jeda = tenang, gelombang biasa = perang, gelombang bos (kelipatan 5) = bos.
+function pickMode(){return $('gm').hidden||!g.running?'calm':g.wave%5===0?'boss':'battle'}
+// CATATAN: bgmTick jalan tiap 0,1 detik dan menjadwalkan nada yang akan datang, supaya musik mulus tanpa putus.
+function bgmTick(){
+  if(!M.on||!AC||AC.state!=='running')return;
+  const m=pickMode();if(m!==M.mode){M.mode=m;M.step=0;M.ph=null;M.rep=0}
+  const md=MODES[M.mode];
+  if(M.next<AC.currentTime)M.next=AC.currentTime+.05;
+  while(M.next<AC.currentTime+.3){playStep(md,M.step++,M.next);M.next+=60/md.bpm/4}
+}
+// CATATAN: bgmStart = nyalakan musik. Browser mewajibkan ada klik dulu, jadi dipanggil saat pemain klik/tekan sesuatu.
+function bgmStart(){try{getAC();if(!M.gain){M.gain=AC.createGain();M.gain.gain.value=M.on?.5:0;M.gain.connect(AC.destination);setInterval(bgmTick,100)}}catch(e){}}
+['pointerdown','keydown'].forEach(ev=>addEventListener(ev,bgmStart));
+// CATATAN: tombol musik on/off.
+$('bMusic').onclick=()=>{M.on=!M.on;$('bMusic').textContent=M.on?'🎵':'🔇';if(M.gain)M.gain.gain.value=M.on?.5:0};
+addEventListener('visibilitychange',()=>{if(AC)document.hidden?AC.suspend():AC.resume()});   // tab disembunyikan = musik berhenti
+
+// ===== PETA =====
+// CATATAN: tiap mode punya peta sendiri. Satu peta = daftar jalur; tiap jalur = titik-titik belokan [x,y]. Insane punya 2 jalur.
+const MAPDEF={
+  easy:[[[0,100],[200,100],[200,300],[450,300],[450,100],[650,100],[650,420],[800,420]]],
+  hard:[[[0,70],[320,70],[320,240],[110,240],[110,430],[520,430],[520,200],[700,200],[700,350],[800,350]]],
+  insane:[[[0,70],[240,70],[240,250],[560,250],[560,430],[700,430],[700,330],[800,330]],
+          [[0,430],[150,430],[150,350],[400,350],[400,100],[620,100],[620,170],[800,170]]]
+};
+// CATATAN: buildMap mengubah daftar titik jadi data siap pakai: panjang tiap ruas, total panjang jalur, dan titik persimpangan antar jalur.
+function buildMap(defs){
+  const paths=defs.map(P=>{const seg=[];let tot=0;for(let i=0;i<P.length-1;i++){const l=Math.hypot(P[i+1][0]-P[i][0],P[i+1][1]-P[i][1]);seg.push([tot,l]);tot+=l}return{P,seg,tot}});
+  const links=[];   // persimpangan: dipakai Jenderal untuk pindah jalur
+  for(let a=0;a<paths.length;a++)for(let b=a+1;b<paths.length;b++)
+    for(let i=0;i<paths[a].seg.length;i++)for(let j=0;j<paths[b].seg.length;j++){
+      const p=paths[a].P[i],q=paths[a].P[i+1],r=paths[b].P[j],s2=paths[b].P[j+1];
+      const d1x=q[0]-p[0],d1y=q[1]-p[1],d2x=s2[0]-r[0],d2y=s2[1]-r[1],den=d1x*d2y-d1y*d2x;
+      if(!den)continue;
+      const t=((r[0]-p[0])*d2y-(r[1]-p[1])*d2x)/den,u=((r[0]-p[0])*d1y-(r[1]-p[1])*d1x)/den;
+      if(t<0||t>1||u<0||u>1)continue;
+      const da=paths[a].seg[i][0]+t*paths[a].seg[i][1],db=paths[b].seg[j][0]+u*paths[b].seg[j][1];
+      links.push({a,b,da,db},{a:b,b:a,da:db,db:da});
+    }
+  return{paths,links};
+}
+const MPS={};for(const k in MAPDEF)MPS[k]=buildMap(MAPDEF[k]);
+let MP=MPS.easy;   // peta yang sedang dipakai
+// CATATAN: at(d,pi) = koordinat [x,y] di jalur ke-pi setelah berjalan sejauh d piksel dari awal jalur.
+function at(d,pi){const p=MP.paths[pi||0],seg=p.seg,P=p.P;for(let i=0;i<seg.length;i++){if(d<=seg[i][0]+seg[i][1]){const t=(d-seg[i][0])/seg[i][1],a=P[i],b=P[i+1];return[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]}}return P[P.length-1]}
+// CATATAN: roadAt = cari titik jalan terdekat dari (px,py). Hasilnya: nomor jalur, jarak tempuh d, koordinat, dan seberapa jauh titik itu dari jalan.
+function roadAt(px,py){let m={dist:1e9};MP.paths.forEach((p,pi)=>{for(let i=0;i<p.seg.length;i++){const a=p.P[i],b=p.P[i+1],dx=b[0]-a[0],dy=b[1]-a[1];let t=((px-a[0])*dx+(py-a[1])*dy)/(dx*dx+dy*dy);t=Math.max(0,Math.min(1,t));const qx=a[0]+t*dx,qy=a[1]+t*dy,ds=Math.hypot(px-qx,py-qy);if(ds<m.dist)m={dist:ds,pi,d:p.seg[i][0]+t*p.seg[i][1],x:qx,y:qy}}});return m}
+// CATATAN: distPath = jarak ke jalan terdekat (dipakai untuk melarang pasang tower di atas jalan).
+function distPath(px,py){return roadAt(px,py).dist}
+// CATATAN: prog = seberapa dekat zombie ke finish (0 sampai 1), supaya zombie di jalur berbeda bisa dibandingkan.
+const prog=z=>z.d/MP.paths[z.pi||0].tot;
+// CATATAN: pathOf = nomor jalur yang paling dekat dengan sebuah tower (Daimyo memanggil prajurit di jalur itu).
+const pathOf=t=>roadAt(t.x,t.y).pi;
+// CATATAN: nextPath = pilih jalur untuk zombie baru; bergantian supaya kedua jalur kebagian.
+function nextPath(){g.pn=(g.pn+1)%MP.paths.length;return g.pn}
+// CATATAN: okSave = cek apakah save lama masih cocok. Save Hard/Insane versi lama dibuang karena petanya sudah berubah.
+const okSave=j=>j&&DM[j.k]&&(j.k==='easy'||j.v===2);
+
+// Statistik Ashigaru per level (index = level)
+const ST={
+  a:{name:['','Ashigaru','Ashigaru Veteran','Tim Teppō','Penembak Samurai'],dmg:[0,3,4,6,9],rate:[0,62,52,44,36],range:[0,110,125,140,160],upc:[0,0,50,90,140],cost:60,label:'Ashigaru',det:3},
+  s:{name:['','Shogun Muda','Shogun Perang','Shogun Agung','Shogun Oni'],dmg:[0,10,16,26,42],rate:[0,60,54,48,42],range:[0,60,66,72,80],upc:[0,0,110,190,290],cost:150,label:'Shogun',hits:[0,1,2,3,4],det:9},
+  y:{name:['','Yari Ashigaru','Yari Veteran','Jūmonji Yari','Yari Emas'],dmg:[0,4,6,9,14],rate:[0,52,46,40,34],range:[0,70,76,82,90],upc:[0,0,60,100,160],cost:80,label:'Yari Ashigaru',hits:[0,2,3,4,5],det:9},
+  d:{name:['','Daimyō Muda','Daimyō Bijak','Daimyō Agung','Daimyō Besar'],dmg:[0,2,3,5,8],rate:[0,330,280,230,180],range:[0,0,0,0,0],upc:[0,0,130,220,340],cost:180,label:'Daimyo',cap:[0,3,4,5,7],hp:[0,15,28,48,80],det:9},
+  o:{name:['','Ōzutsu','Ōzutsu Berat','Meriam Perang','Meriam Naga'],dmg:[0,10,16,26,40],rate:[0,150,135,120,100],range:[0,150,165,180,200],spl:[0,40,46,52,60],upc:[0,0,100,170,260],cost:160,label:'Ōzutsu',det:9},
+  h:{name:['','Sōhei','Sōhei Senior','Sōhei Agung','Sōhei Suci'],dmg:[0,0,0,0,0],rate:[0,1,1,1,1],range:[0,90,105,120,140],slow:[0,.7,.6,.5,.4],upc:[0,0,70,120,190],cost:110,label:'Sōhei',det:9},
+  // CATATAN: Jenderal (gratis, digerakkan pemain). spd = kecepatan jalan, hits = jumlah musuh per tebasan, upc = biaya upgrade.
+  g:{name:['','Jenderal Muda','Jenderal Perang','Jenderal Agung','Jenderal Oni'],dmg:[0,5,9,15,25],rate:[0,55,48,42,34],range:[0,50,56,62,70],hits:[0,1,2,3,4],spd:[0,1.3,1.6,1.9,2.2],upc:[0,0,90,160,270],det:3}
+};
+const S=t=>ST[t.type],detects=t=>t.lv>=S(t).det;
+// Tingkat kesulitan: tiap tingkat punya roster zombie sendiri (n normal, f cepat, s tebal, h hidden, b bomber, a berzirah, r regen, x pembelah, m medik)
+const DM={
+  easy:{n:'Easy',w:30,coin:50,hp:.8,cnt:1,spd:.9,lives:15,g:200,eye:'#111',roster:'nfshb'},
+  hard:{n:'Hard',w:35,coin:100,hp:1.1,cnt:1.2,spd:1,lives:10,g:170,eye:'#f1c40f',roster:'nfshbar'},
+  insane:{n:'Insane',w:50,coin:200,hp:1.5,cnt:1.4,spd:1.05,lives:6,g:140,eye:'#ff1744',roster:'nfshbarxm'}
+};
+let cur=DM.easy,sv={coins:0,own:['a']};
+try{const j=JSON.parse(localStorage.getItem('szd')||'null');if(j&&Array.isArray(j.own)&&typeof j.coins==='number')sv=j}catch(e){}
+if(!sv.own.includes('a'))sv.own.push('a');
+function save(){try{localStorage.setItem('szd',JSON.stringify(sv))}catch(e){}}
+const cnt=w=>Math.ceil((3+w*2)*g.dm.cnt);
+const SHOP=[['a','Ashigaru','Matchlock jarak jauh, Lv 3+ bisa deteksi hidden',0],['y','Yari Ashigaru','Tombak tembus beberapa zombie segaris',40],['h','Sōhei','Biksu perang: memperlambat zombie di sekitarnya',70],['o','Ōzutsu','Meriam: ledakan area, damage besar',90],['s','Shogun','Melee elit, tebasan melebar',120],['d','Daimyo','Memanggil pasukan dari garis finish',150]];
+function renderHome(){
+  $('pc').textContent=sv.coins;
+  let sj=null;try{sj=JSON.parse(localStorage.getItem('szd_run')||'null')}catch(e){}
+  $('bCont').hidden=!(okSave(sj));if(okSave(sj))$('bCont').textContent='▶ Lanjutkan: '+DM[sj.k].n+' • gelombang '+sj.w;
+  $('shopList').innerHTML=SHOP.map(([k,n,d,p])=>'<div class="row"><span><b>'+n+'</b> – '+d+'</span>'+(sv.own.includes(k)?'<em>✔ Dimiliki</em>':'<button data-k="'+k+'" '+(sv.coins<p?'disabled':'')+'>Beli '+p+'</button>')+'</div>').join('');
+  $('shopList').querySelectorAll('button').forEach(b=>b.onclick=()=>{const it=SHOP.find(s=>s[0]===b.dataset.k);if(it&&sv.coins>=it[3]&&!sv.own.includes(it[0])){sv.coins-=it[3];sv.own.push(it[0]);save();renderHome()}});
+}
+function showHome(){paused=true;document.body.classList.remove('playing');$('gm').hidden=true;$('home').hidden=false;renderHome()}
+function startGame(k){curKey=k;cur=DM[k];reset();$('home').hidden=true;$('gm').hidden=false;document.body.classList.add('playing');paused=false;fit()}
+function lose(){if(g.paid)return;g.paid=true;const d=g.dm,c=Math.floor(d.coin*g.wave/d.w);sv.coins+=c;save();clearRun();g.over=true;g.build=false;g.res={a:'Kamu gugur…',b:'Bertahan sampai gelombang '+g.wave+' • +'+c+' koin pemain',c:'#e53935'};snd('over');ui()}
+function win(){if(g.paid)return;g.paid=true;const d=g.dm;sv.coins+=d.coin;save();clearRun();g.over=true;g.build=false;g.res={a:'MENANG!',b:'Semua '+d.w+' gelombang bertahan • +'+d.coin+' koin pemain',c:'#8bc34a'};snd('up');ui()}
+document.querySelectorAll('.card').forEach(b=>b.onclick=()=>startGame(b.dataset.d));
+$('bMenu').onclick=showHome;
+let curKey='easy';
+$('gm').appendChild($('modal'));   // supaya panel info tetap muncul saat layar penuh
+// Layar menyesuaikan ruang yang ada (tidak bergeser walau tombol berubah ukuran)
+function fit(){const r=$('cv').getBoundingClientRect();if(r.width<10||r.height<10)return;const s=Math.min(r.width/W,r.height/H);const d=window.devicePixelRatio||1,pw=Math.floor(W*s),ph=Math.floor(H*s);c.style.width=pw+'px';c.style.height=ph+'px';const bw=Math.round(pw*Math.min(d,2.5)),bh=Math.round(ph*Math.min(d,2.5));if(c.width!==bw||c.height!==bh){c.width=bw;c.height=bh}}
+try{new ResizeObserver(fit).observe($('cv'))}catch(e){}
+addEventListener('resize',fit);
+function clearRun(){try{localStorage.removeItem('szd_run')}catch(e){}}
+function snap(){return{v:2,k:curKey,w:g.wave,gold:g.gold,lives:g.lives,q:g.q,bs:g.bs,sp:g.sp,run:g.running,
+  t:g.t.map(t=>({x:t.x,y:t.y,lv:t.lv,type:t.type,spent:t.spent,ang:t.ang,sm:t.sm||0})),
+  z:g.z.filter(z=>z.hp>0),
+  u:g.u.map(u=>({pi:u.pi,d:u.d,hp:u.hp,max:u.max,lv:u.lv,oi:g.t.indexOf(u.o)})),
+  gen:{pi:g.gen.pi,d:g.gen.d,lv:g.gen.lv,spent:g.gen.spent}}}
+function saveRun(){if(g.over)return;let ok=true;try{localStorage.setItem('szd_run',JSON.stringify(snap()))}catch(e){ok=false}
+  g.msg={t:100,a:ok?'TERSIMPAN':'GAGAL MENYIMPAN',b:ok?'Gelombang '+g.wave+' disimpan':'Penyimpanan browser tidak tersedia',c:ok?'#8bc34a':'#ff5252'}}
+function loadRun(){let j=null;try{j=JSON.parse(localStorage.getItem('szd_run')||'null')}catch(e){}
+  if(!okSave(j))return;
+  curKey=j.k;cur=DM[j.k];reset();
+  Object.assign(g,{wave:Math.min(j.w,cur.w),gold:j.gold,lives:j.lives,q:j.q,bs:j.bs||[],sp:j.sp,running:!!j.run});
+  g.t=j.t.map(t=>Object.assign({cd:0,sw:0,stun:0,sm:120},t));
+  g.z=j.z.map(z=>Object.assign({hit:0,pi:0},z));
+  g.u=j.u.filter(u=>u.oi>=0).map(u=>({pi:u.pi||0,d:u.d,hp:u.hp,max:u.max,lv:u.lv,o:g.t[u.oi],cd:0,sp:1,sw:0,hit:0}));
+  if(j.gen)Object.assign(g.gen,j.gen,{tpi:j.gen.pi,td:j.gen.d});
+  g.msg={t:150,a:'DILANJUTKAN',b:cur.n+' • gelombang '+g.wave,c:'#8bc34a'};
+  $('home').hidden=true;$('gm').hidden=false;document.body.classList.add('playing');paused=false;fit();ui()}
+function wipe(){sv={coins:0,own:['a']};save();clearRun();showHome()}
+function twice(btn,label,fn,skip){let t=null;btn.onclick=()=>{if((skip&&skip())||t){clearTimeout(t);t=null;btn.textContent=label;fn()}else{btn.textContent='Yakin? Klik lagi';t=setTimeout(()=>{t=null;btn.textContent=label},3000)}}}
+$('bSave').onclick=saveRun;
+twice($('bReplay'),'🔄 Replay',()=>startGame(curKey),()=>g.over);
+twice($('bReset'),'⚠ Reset',wipe);
+twice($('hReset'),'⚠ Reset progres',wipe);
+$('bCont').onclick=loadRun;
+$('bFs').onclick=()=>{try{document.fullscreenElement?document.exitFullscreen():$('gm').requestFullscreen()}catch(e){}};
+[['bBuild5','o'],['bBuild6','h']].forEach(([id,k])=>$(id).onclick=()=>{g.build=g.build===k?false:k;g.sel=null;ui()});
+
+let g,mx=-99,my=-99;
+function reset(){MP=MPS[curKey];g={gen:newGen(),pn:0,dm:cur,ps:[],fl:[],bs:[],nz:[],gold:cur.g,lives:cur.lives,fx:[],u:[],autoT:0,msg:{t:300,a:cur.n.toUpperCase()+' • '+cur.w+' GELOMBANG',b:'Pasang tower dulu, lalu klik “Mulai Gelombang”',c:'#fff'},wave:0,z:[],t:[],q:0,boss:0,sp:0,running:false,sel:null,build:false,over:false,shots:[]};ui()}
+function valid(px,py){return distPath(px,py)>34&&px>16&&px<W-16&&py>16&&py<H-16&&g.t.every(t=>Math.hypot(t.x-px,t.y-py)>34)}
+let auto=false,paused=false;
+const closeM=()=>{paused=false;$('modal').hidden=true};
+$('bInfo').onclick=()=>{paused=true;$('modal').hidden=false};
+$('mClose').onclick=closeM;
+$('modal').onclick=e=>{if(e.target===$('modal'))closeM()};
+function waveInfo(w){const add={2:'Zombie cepat muncul!',3:'Zombie lambat & tebal muncul!',4:'Hidden & Bomber muncul!'}[w];return (w===g.dm.w?'🏁 GELOMBANG TERAKHIR! • ':'')+(w%10===0?'☠ MEGA BOSS! • ':w%5===0?'⚠ Miniboss! • ':'')+cnt(w)+' zombie'+(add?' • '+add:'')}
+function waveInfoOld(w){
+  const n=3+w*2,add={2:'Zombie cepat muncul!',3:'Zombie lambat & tebal muncul!',4:'Hidden & Bomber muncul!'}[w];
+  return (w%5===0?(w>=10?'⚠ DUA Shogun Zombie! • ':'⚠ Shogun Zombie datang! • '):'')+n+' zombie'+(add?' • '+add:'');
+}
+// Mulai gelombang berikutnya (kalau dipanggil saat gelombang masih jalan = skip, gelombangnya numpuk)
+function startWave(){
+  if(g.over||g.wave>=g.dm.w)return;   // PERBAIKAN BUG: dilarang melewati gelombang maksimal, jadi game bisa tamat
+  g.wave++;g.q+=cnt(g.wave);const bn=15+g.wave*4;g.gold+=bn;
+  {const n=1+Math.floor(g.wave/25);if(g.wave%10===0)for(let i=0;i<n;i++)g.bs.push('M');else if(g.wave%5===0)for(let i=0;i<n;i++)g.bs.push('m')}
+  if(!g.running)g.sp=0;
+  g.running=true;g.build=false;g.autoT=0;
+  g.msg={t:170,a:'GELOMBANG '+g.wave,b:waveInfo(g.wave)+' • +'+bn+' koin',c:g.wave%5===0?'#ff5252':'#fff'};
+  snd('wave');ui();
+}
+$('bSkip').onclick=()=>{if(g.running&&!g.over)startWave()};
+$('bAuto').onclick=()=>{auto=!auto;if(auto&&!g.running&&!g.over&&!g.autoT)g.autoT=120;if(!auto)g.autoT=0;ui()};
+function ui(){
+  $('gold').textContent=g.gold;$('lives').textContent=g.lives;$('wave').textContent=g.wave+'/'+g.dm.w;
+  for(const[id,k]of[['bBuild','a'],['bBuild2','s'],['bBuild3','y'],['bBuild4','d'],['bBuild5','o'],['bBuild6','h']]){const b=$(id);b.hidden=!sv.own.includes(k);b.textContent='Pasang '+ST[k].label+' ('+ST[k].cost+')';b.disabled=g.over||g.gold<ST[k].cost;b.classList.toggle('on',g.build===k)}
+  $('bSkip').disabled=!g.running||g.over||g.wave>=g.dm.w;$('bGen').classList.toggle('on',g.sel===g.gen);$('bGen').textContent='🥷 Jenderal Lv '+g.gen.lv;$('bAuto').textContent='🔁 Auto: '+(auto?'ON':'OFF');$('bAuto').classList.toggle('on',auto);
+  $('bWave').disabled=g.running||g.over;$('bWave').textContent=g.over?'Kembali ke menu':'Mulai Gelombang '+(g.wave+1);
+  const s=g.sel;
+  $('bUp').disabled=!s||s.lv>=4||g.gold<S(s).upc[s.lv+1];
+  $('bUp').textContent=s?(s.lv>=4?'Level maks':'Upgrade ('+S(s).upc[s.lv+1]+')'):'Upgrade';
+  $('bSell').disabled=!s||s.type==='g';$('bSell').textContent=s?'Jual ('+Math.floor(s.spent*.5)+')':'Jual';
+  $('info').textContent=g.over?'Zombie tembus garis finish! Klik “Game over” untuk mengulang.':s?(s.type==='g'?gInfo(s):s.type==='d'?dInfo(s):s.type==='h'?hInfo(s):S(s).name[s.lv]+' • Lv '+s.lv+' • Damage '+S(s).dmg[s.lv]+' • Jarak '+S(s).range[s.lv])+(detects(s)?' • Deteksi 👁':'')+(s.type==='s'?' • Tebas '+S(s).hits[s.lv]+' musuh':s.type==='y'?' • Tusukan tembus '+S(s).hits[s.lv]+' musuh':''):'Pasang tower di luar jalan. Klik jalan / panah / WASD = gerakkan Jenderal 🥷. Klik tower/Jenderal = upgrade. Esc = batal.';
+}
+// CATATAN: tombol Jenderal = pilih / batal pilih Jenderal (untuk lihat info & upgrade).
+$('bGen').onclick=()=>{g.build=false;g.sel=g.sel===g.gen?null:g.gen;ui()};
+$('bBuild').onclick=()=>{g.build=g.build==='a'?false:'a';g.sel=null;ui()};
+$('bBuild2').onclick=()=>{g.build=g.build==='s'?false:'s';g.sel=null;ui()};
+$('bBuild3').onclick=()=>{g.build=g.build==='y'?false:'y';g.sel=null;ui()};
+$('bBuild4').onclick=()=>{g.build=g.build==='d'?false:'d';g.sel=null;ui()};
+$('bWave').onclick=()=>{if(g.over){showHome();return}startWave()};
+$('bUp').onclick=()=>{const s=g.sel;if(!s||s.lv>=4)return;const u=S(s).upc[s.lv+1];if(g.gold>=u){g.gold-=u;s.spent+=u;s.lv++;snd('up');ui()}};
+$('bSell').onclick=()=>{const s=g.sel;if(s){g.gold+=Math.floor(s.spent*.5);g.t=g.t.filter(t=>t!==s);g.u=g.u.filter(u=>u.o!==s);g.sel=null;snd('sell');ui()}};
+addEventListener('keydown',e=>{if(e.code==='Escape'){if(!$('modal').hidden)closeM();g.build=false;g.sel=null;ui()}});
+function pos(e){const r=c.getBoundingClientRect();return[(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height]}
+c.onmousemove=e=>{[mx,my]=pos(e)};
+c.onmouseleave=()=>{mx=my=-99};
+c.onclick=e=>{
+  if(g.over)return;
+  const[px,py]=pos(e);
+  if(g.build){
+    const cs=ST[g.build].cost;if(g.gold>=cs&&valid(px,py)){g.t.push({x:px,y:py,lv:1,cd:0,spent:cs,ang:0,type:g.build,sw:0,stun:0,sm:120});g.gold-=cs;snd('build');if(g.gold<cs)g.build=false}
+    ui();return;
+  }
+  const G=g.gen;
+  if(Math.hypot(G.x-px,G.y-py)<20){g.sel=g.sel===G?null:G;ui();return}   // klik Jenderal = pilih
+  const tw=g.t.find(t=>Math.hypot(t.x-px,t.y-py)<18);
+  if(tw){g.sel=tw;ui();return}   // klik tower = pilih tower
+  const r=roadAt(px,py);
+  if(r.dist<=26){if(!genTarget(r.pi,r.d))g.msg={t:90,a:'Tidak ada jalan ke sana',b:'Jenderal hanya bisa lewat jalan yang tersambung',c:'#ff5252'};return}   // klik jalan = suruh Jenderal jalan
+  g.sel=null;ui();
+};
+
+function dmgZ(z,d){if(z.k==='a')d=Math.max(1,Math.ceil(d*.55));z.hp-=d;z.hit=5;fxHit(z,d)}
+// Partikel saat kena + angka damage melayang
+function fxHit(z,d){if(g.ps.length>300)return;const[px,py]=at(z.d,z.pi);for(let i=0;i<5;i++){const a=Math.random()*6.28,s=.8+Math.random()*1.6;g.ps.push({x:px,y:py,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1,t:18+Math.random()*8|0,c:z.k==='a'?'#ecf0f1':i%2?'#e53935':'#ffcc80'})}g.fl.push({x:px+(Math.random()*10-5),y:py-z.r-6,v:Math.round(d),t:38})}
+function slowF(z){let f=1;const[a,b]=at(z.d,z.pi);for(const t of g.t)if(t.type==='h'&&!(t.stun>0)&&Math.hypot(a-t.x,b-t.y)<=S(t).range[t.lv])f=Math.min(f,S(t).slow[t.lv]);return f}
+function hInfo(s){return S(s).name[s.lv]+' • Lv '+s.lv+' • Jarak '+S(s).range[s.lv]+' • Zombie diperlambat '+Math.round((1-S(s).slow[s.lv])*100)+'%'}
+function drawCannon(t){const l=t.lv,rc=t.sw>0?-t.sw*.6:0;x.save();x.translate(t.x,t.y);x.rotate(t.ang);x.fillStyle=['','#2a2a2a','#3a3a3a','#4a3a1a','#d4af37'][l];x.fillRect(-8+rc,-5-l*.8,24+l*3,10+l*1.6);x.fillStyle='#111';x.fillRect(14+l*3+rc,-4-l*.6,3,8+l*1.2);x.fillStyle='#b3202a';x.fillRect(-4+rc,-5-l*.8,3,10+l*1.6);x.restore();x.fillStyle='#ffd54f';for(let i=0;i<l;i++){x.beginPath();x.arc(t.x-(l-1)*3+i*6,t.y+22,2,0,7);x.fill()}}
+function drawSohei(t){const l=t.lv,X=t.x,Y=t.y;x.strokeStyle='rgba(130,230,170,.3)';x.lineWidth=2;x.setLineDash([5,5]);x.beginPath();x.arc(X,Y,S(t).range[l],0,7);x.stroke();x.setLineDash([]);x.fillStyle=['','#c9a14a','#e0e0e0','#e0e0e0','#ffd54f'][l];x.beginPath();x.arc(X,Y+4,13,0,Math.PI);x.fill();x.fillStyle='#e9d5b8';x.beginPath();x.arc(X,Y-2,9,0,7);x.fill();x.fillStyle='#f5f5f5';x.fillRect(X-9,Y-9,18,4);x.strokeStyle='#5a3a1e';x.lineWidth=2;x.beginPath();x.moveTo(X+14,Y+14);x.lineTo(X+14,Y-22);x.stroke();x.fillStyle='#ccc';x.beginPath();x.moveTo(X+14,Y-22);x.lineTo(X+9,Y-14);x.lineTo(X+19,Y-14);x.fill();x.fillStyle='#ffd54f';for(let i=0;i<l;i++){x.beginPath();x.arc(X-(l-1)*3+i*6,Y+22,2,0,7);x.fill()}}
+function explode(z){const[bx,by]=at(z.d,z.pi);for(const t of g.t.concat(g.gen))if(Math.hypot(t.x-bx,t.y-by)<=55)t.stun=150;g.fx.push({x:bx,y:by,t:30,r:55});snd('boom')}
+// ===== JENDERAL (gratis, dikendalikan pemain, hanya jalan di jalan) =====
+// CATATAN: newGen = bikin Jenderal baru di awal permainan (Lv 1, berdiri di jalur pertama).
+function newGen(){const[x0,y0]=at(90,0);return{type:'g',pi:0,d:90,tpi:0,td:90,via:null,lv:1,spent:0,cd:0,sw:0,stun:0,ang:0,x:x0,y:y0}}
+// CATATAN: genTarget = perintah "jalan ke titik ini". Kalau tujuan ada di jalur lain, Jenderal lewat persimpangan dulu. Hasil false = tidak ada jalan ke sana.
+function genTarget(pi,d){const G=g.gen;let best=null,bc=1e9;G.tpi=pi;G.td=d;G.via=null;
+  if(pi===G.pi)return true;
+  for(const L of MP.links)if(L.a===G.pi&&L.b===pi){const c=Math.abs(G.d-L.da)+Math.abs(d-L.db);if(c<bc){bc=c;best=L}}
+  if(!best){G.tpi=G.pi;G.td=G.d;return false}
+  G.via=best;return true}
+// CATATAN: segDir = arah jalan (vektor panjang 1) pada titik d di jalur pi.
+function segDir(pi,d){const p=MP.paths[pi];let i=0;while(i<p.seg.length-1&&d>p.seg[i][0]+p.seg[i][1])i++;const a=p.P[i],b=p.P[i+1],l=p.seg[i][1];return[(b[0]-a[0])/l,(b[1]-a[1])/l]}
+const keys={};   // tombol yang sedang ditekan
+// CATATAN: genKeys = gerakkan Jenderal pakai keyboard (panah / WASD). Jenderal ikut belok mengikuti jalan. Hasil true = ada tombol arah ditekan.
+function genKeys(G,sp){
+  const kx=(keys.ArrowRight||keys.KeyD?1:0)-(keys.ArrowLeft||keys.KeyA?1:0),ky=(keys.ArrowDown||keys.KeyS?1:0)-(keys.ArrowUp||keys.KeyW?1:0);
+  if(!kx&&!ky)return false;
+  const n=Math.hypot(kx,ky),cand=[[G.pi,G.d]];   // kandidat: jalur sekarang + jalur lain kalau lagi di persimpangan
+  for(const L of MP.links)if(L.a===G.pi&&Math.abs(L.da-G.d)<=sp+1)cand.push([L.b,L.db]);
+  let best=null,bs=.5;
+  for(const[pi,d]of cand)for(const sg of[1,-1]){const v=segDir(pi,d+.01*sg),dot=(v[0]*sg*kx+v[1]*sg*ky)/n;if(dot>bs){bs=dot;best={pi,d,sg}}}
+  if(best)G.pi=best.pi,G.d=Math.max(0,Math.min(MP.paths[best.pi].tot,best.d+best.sg*sp));
+  G.tpi=G.pi;G.td=G.d;G.via=null;return true}
+// CATATAN: catat tombol yang ditekan / dilepas.
+addEventListener('keydown',e=>{keys[e.code]=true;if(!$('gm').hidden&&e.code.startsWith('Arrow'))e.preventDefault()});
+addEventListener('keyup',e=>{keys[e.code]=false});
+addEventListener('blur',()=>{for(const k in keys)keys[k]=false});
+// CATATAN: updateGen = dipanggil tiap frame: Jenderal jalan (klik / keyboard), lalu menebas zombie yang ada dalam jangkauannya.
+function updateGen(){
+  const G=g.gen,sp=S(G).spd[G.lv],ox=G.x,oy=G.y;
+  if(!genKeys(G,sp)){   // tidak pakai keyboard: ikuti perintah klik
+    const want=G.via?G.via.da:G.td,dd=want-G.d;
+    if(Math.abs(dd)<=sp){G.d=want;if(G.via){G.pi=G.via.b;G.d=G.via.db;G.via=null}}else G.d+=Math.sign(dd)*sp}
+  [G.x,G.y]=at(G.d,G.pi);
+  if(G.cd>0)G.cd--;if(G.sw>0)G.sw--;
+  if(G.sw<=0&&Math.hypot(G.x-ox,G.y-oy)>.05)G.ang=Math.atan2(G.y-oy,G.x-ox);
+  if(G.stun>0){G.stun--;return}
+  if(G.cd>0)return;
+  const R=S(G).range[G.lv],L=g.z.filter(z=>{if(z.hp<=0||(z.hid&&!z.vis))return false;const[zx,zy]=at(z.d,z.pi);return Math.hypot(zx-G.x,zy-G.y)<=R}).sort((a,b)=>prog(b)-prog(a)).slice(0,S(G).hits[G.lv]);
+  if(!L.length)return;
+  const[tx,ty]=at(L[0].d,L[0].pi);G.ang=Math.atan2(ty-G.y,tx-G.x);G.cd=S(G).rate[G.lv];G.sw=9;
+  for(const z of L)dmgZ(z,S(G).dmg[G.lv]);snd('slash',G.lv)}
+// CATATAN: gInfo = teks info Jenderal di bagian bawah layar.
+function gInfo(s){return S(s).name[s.lv]+' • Lv '+s.lv+' • Damage '+S(s).dmg[s.lv]+' • Jarak '+S(s).range[s.lv]+' • Tebas '+S(s).hits[s.lv]+' musuh • Kecepatan '+S(s).spd[s.lv]}
+// CATATAN: drawGeneral = gambar Jenderal (jubah merah, lingkaran biru, pedang + topeng ala Shogun, panji) dan penanda tujuan jalannya.
+function drawGeneral(){
+  const G=g.gen,[X,Y]=at(G.d,G.pi),l=G.lv;
+  if(g.sel===G){x.fillStyle='rgba(255,255,255,.12)';x.beginPath();x.arc(X,Y,S(G).range[l],0,7);x.fill();x.strokeStyle='#fff8';x.lineWidth=1.5;x.stroke()}
+  if(G.pi!==G.tpi||Math.abs(G.d-G.td)>1){const[tx,ty]=at(G.td,G.tpi);x.strokeStyle='rgba(255,213,79,.85)';x.lineWidth=2;x.setLineDash([4,3]);x.beginPath();x.arc(tx,ty,9+Math.sin(Date.now()/150)*2,0,7);x.stroke();x.setLineDash([])}
+  x.fillStyle='#c0392b';x.beginPath();x.moveTo(X-12,Y-2);x.lineTo(X-22,Y+16);x.lineTo(X+2,Y+12);x.fill();
+  x.fillStyle=['','#2f5d8a','#2f7d8a','#6a2f8a','#b8860b'][l];x.beginPath();x.arc(X,Y,16,0,7);x.fill();x.strokeStyle='#ffd54f';x.lineWidth=2.5;x.stroke();
+  drawKatana({x:X,y:Y,lv:l,ang:G.ang,sw:G.sw});
+  x.fillStyle='#1565c0';x.fillRect(X+14,Y-34,2,36);x.fillRect(X+16,Y-34,14,10);x.fillStyle='#fff';x.font='bold 9px system-ui,sans-serif';x.textAlign='center';x.fillText('★',X+23,Y-26);
+  if(G.stun>0){x.fillStyle='rgba(255,235,59,.35)';x.beginPath();x.arc(X,Y,20,0,7);x.fill();x.fillStyle='#fff176';x.font='bold 14px system-ui,sans-serif';x.fillText('⚡',X,Y-22)}
+}
+function update(){
+  if(g.running&&g.q+g.bs.length>0&&--g.sp<=0){
+    g.sp=Math.max(30,60-g.wave*2);
+    if(g.bs.length&&g.q<=1){const M=g.bs.shift()==='M',hp=M?700:220;g.z.push({d:0,pi:nextPath(),hp,max:hp,sp:M?.5:.6,boss:1,mega:M,hit:0,r:M?30:20,col:M?'#4a0f12':'#6a2c7a',rew:M?250:90,cost:M?6:3})}
+    else{g.q--;const dm=g.dm,H=5,b=.7,r=Math.random(),ro=dm.roster,w=g.wave,K=1+w/25;let z;
+      if(ro.includes('x')&&w>=8&&Math.random()<.07*K)z={hp:Math.ceil(H*1.4),sp:b*.9,r:14,col:'#c0392b',k:'x',rew:12,cost:1};
+      else if(ro.includes('m')&&w>=10&&Math.random()<.06*K)z={hp:Math.ceil(H*1.1),sp:b*.8,r:12,col:'#27ae60',k:'m',rew:14,cost:1};
+      else if(ro.includes('a')&&w>=6&&Math.random()<.12*K)z={hp:Math.ceil(H*1.6),sp:b*.85,r:13,col:'#7f8c8d',k:'a',rew:12,cost:1};
+      else if(ro.includes('r')&&w>=7&&Math.random()<.1*K)z={hp:Math.ceil(H*1.3),sp:b*.9,r:12,col:'#16a085',k:'r',rew:12,cost:1};
+      else
+      if(g.wave>=4&&Math.random()<.12*K)z={hp:Math.ceil(H*1.2),sp:b*.95,r:12,col:'#d4572a',k:'b',rew:9,cost:1};   // bomber
+      else if(g.wave>=4&&Math.random()<.15*K)z={hp:Math.ceil(H*.9),sp:b*1.1,r:11,col:'#9a86d0',k:'h',hid:true,vis:false,rew:10,cost:1};   // tersembunyi
+      else if(g.wave>=3&&r<.2)z={hp:Math.ceil(H*2.8),sp:b*.55,r:15,col:'#5a6a8a',k:'s',rew:11,cost:2};   // lambat & tebal
+      else if(g.wave>=2&&r<.5)z={hp:Math.ceil(H*.6),sp:b*1.8,r:9,col:'#e0a030',k:'f',rew:8,cost:1};   // cepat & rapuh
+      else z={hp:H,sp:b,r:11,col:'#5f9a4a',k:'n',rew:6,cost:1};
+      z.d=0;z.pi=nextPath();z.max=z.hp;z.boss=0;z.hit=0;g.z.push(z)}
+  }
+  for(const z of g.z){if(z.boss&&!z.rage&&z.hp<z.max/2){z.rage=1;z.sp*=1.5;snd('rage')}if(z.mega&&!z.r2&&z.hp<z.max/4){z.r2=1;z.sp*=1.4;snd('rage')}
+    if(z.k==='r'&&z.hp>0&&z.hp<z.max)z.hp=Math.min(z.max,z.hp+z.max*.0007);
+    if(z.k==='m'&&z.hp>0&&(z.hc=(z.hc||0)+1)>=150){z.hc=0;for(const o of g.z)if(o.hp>0&&Math.abs(o.d-z.d)<80)o.hp=Math.min(o.max,o.hp+o.max*.12)}
+    z.d+=z.sp*slowF(z);if(z.hit>0)z.hit--;if(z.hid){const[hx,hy]=at(z.d,z.pi);z.vis=g.t.concat(g.gen).some(t=>detects(t)&&Math.hypot(hx-t.x,hy-t.y)<=S(t).range[t.lv])}
+    if(z.d>=MP.paths[z.pi].tot){z.hp=-999;g.lives-=z.cost;snd('leak');if(g.lives<=0&&!g.over){g.lives=0;lose()}}}
+  for(const t of g.t){
+    if(t.cd>0)t.cd--;if(t.sw>0)t.sw--;if(t.stun>0){t.stun--;continue}if(t.type==='h')continue;
+    if(t.type==='d'){   // Daimyo: panggil prajurit dari garis finish
+      if(--t.sm<=0&&g.u.filter(u=>u.o===t&&u.hp>0).length<S(t).cap[t.lv]){t.sm=S(t).rate[t.lv];g.u.push({pi:pathOf(t),d:MP.paths[pathOf(t)].tot-8,o:t,hp:S(t).hp[t.lv],max:S(t).hp[t.lv],dmg:S(t).dmg[t.lv],lv:t.lv,cd:0,sp:1,sw:0,hit:0});snd('summon');t.sw=14}
+      else if(t.sm<0)t.sm=0;
+      continue;
+    }
+    if(t.cd<=0){
+      let best=null;
+      for(const z of g.z){if(z.hp<=0)continue;const[zx,zy]=at(z.d,z.pi);
+        if((!z.hid||z.vis)&&Math.hypot(zx-t.x,zy-t.y)<=S(t).range[t.lv]&&(!best||prog(z)>prog(best)))best=z}
+      if(best&&t.type==='o'){const[zx,zy]=at(best.d,best.pi);t.ang=Math.atan2(zy-t.y,zx-t.x);t.cd=S(t).rate[t.lv];t.sw=10;const R=S(t).spl[t.lv];for(const z of g.z){if(z.hp<=0||(z.hid&&!z.vis))continue;const[qx,qy]=at(z.d,z.pi);if(Math.hypot(qx-zx,qy-zy)<=R)dmgZ(z,S(t).dmg[t.lv])}g.fx.push({x:zx,y:zy,t:24,r:R});snd('cannon')}else if(best&&t.type==='y'){
+        const[zx,zy]=at(best.d,best.pi);t.ang=Math.atan2(zy-t.y,zx-t.x);t.cd=S(t).rate[t.lv];t.sw=8;
+        const ca=Math.cos(t.ang),sa=Math.sin(t.ang);
+        const L=g.z.filter(z=>{if(z.hp<=0||(z.hid&&!z.vis))return false;const[qx,qy]=at(z.d,z.pi),dx=qx-t.x,dy=qy-t.y,p=dx*ca+dy*sa,q=Math.abs(-dx*sa+dy*ca);return p>0&&p<=S(t).range[t.lv]+z.r&&q<=z.r+7}).sort((a,b)=>prog(b)-prog(a)).slice(0,S(t).hits[t.lv]);
+        for(const z of L){dmgZ(z,S(t).dmg[t.lv])}
+        snd('stab',t.lv)
+      }else if(best&&t.type==='s'){
+        const L=g.z.filter(z=>z.hp>0&&(!z.hid||z.vis)&&Math.hypot(at(z.d,z.pi)[0]-t.x,at(z.d,z.pi)[1]-t.y)<=S(t).range[t.lv]).sort((a,b)=>prog(b)-prog(a)).slice(0,S(t).hits[t.lv]);
+        const[zx,zy]=at(best.d,best.pi);t.ang=Math.atan2(zy-t.y,zx-t.x);t.cd=S(t).rate[t.lv];t.sw=9;
+        for(const z of L){dmgZ(z,S(t).dmg[t.lv])}
+        snd('slash',t.lv)
+      }else if(best){const[zx,zy]=at(best.d,best.pi);dmgZ(best,S(t).dmg[t.lv]);t.cd=S(t).rate[t.lv];t.ang=Math.atan2(zy-t.y,zx-t.x);
+        g.shots.push({x1:t.x,y1:t.y,x2:zx,y2:zy,t:7,a:t.ang,gl:GL[t.lv]+2});snd('shot',t.lv)}
+    }
+  }
+  updateGen();
+  for(const u of g.u){   // prajurit Daimyo: jalan dari finish ke depan, berhenti buat bertarung
+    if(u.hit>0)u.hit--;if(u.sw>0)u.sw--;
+    u.d-=u.sp;for(const z of g.z){if(u.hp<=0)break;if(z.pi!==u.pi||z.hp<=0||(z.hid&&!z.vis)||Math.abs(z.d-u.d)>12)continue;const m=Math.min(u.hp,z.hp);u.hp-=m;z.hp-=m;z.hit=5;u.hit=5;u.sw=8;fxHit(z,m)}
+    
+    if(u.d<-20)u.hp=0;
+  }
+  g.u=g.u.filter(u=>u.hp>0);
+  if(!g.running&&g.autoT>0&&--g.autoT===0&&auto)startWave();
+  if(g.msg&&--g.msg.t<=0)g.msg=null;
+  const before=g.z.length;
+  g.z=g.z.filter(z=>{if(z.hp<=0){if(z.hp>-999){g.gold+=z.rew;snd('kill');if(z.k==='b')explode(z);if(z.k==='x')for(const sd of[-6,6])g.nz.push({pi:z.pi,d:Math.max(0,z.d+sd),hp:Math.ceil(z.max*.3),max:Math.ceil(z.max*.3),sp:z.sp*1.4,r:7,col:'#e74c3c',k:'n',rew:2,cost:1,boss:0,hit:0})}return false}return true});
+  g.z=g.z.concat(g.nz.splice(0));
+  g.ps=g.ps.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.15;return--p.t>0});g.fl=g.fl.filter(f=>{f.y-=.6;return--f.t>0});g.shots=g.shots.filter(s=>--s.t>0);g.fx=g.fx.filter(f=>--f.t>0);
+  if(g.z.length!==before)ui();
+  if(g.running&&g.q+g.bs.length===0&&!g.z.length){g.running=false;if(g.wave>=g.dm.w){win();return}g.msg={t:150,a:'GELOMBANG '+g.wave+' SELESAI',b:'Mulai gelombang berikutnya untuk dapat bonus koin',c:'#8bc34a'};if(auto)g.autoT=180;ui()}
+  $('gold').textContent=g.gold;$('lives').textContent=g.lives;
+}
+// Matchlock berubah bentuk tiap level
+const GL=[0,24,30,34,40];
+function drawGun(t){
+  const L=GL[t.lv],w=[0,4,4,6,6][t.lv];
+  x.save();x.translate(t.x,t.y);x.rotate(t.ang);
+  x.fillStyle='#4a3020';x.fillRect(-4,-w/2-1,12,w+2);                         // popor kayu
+  x.fillStyle=['','#333','#666','#1c1c1c','#d4af37'][t.lv];x.fillRect(4,-w/2,L-4,w); // laras
+  if(t.lv>=2){x.fillStyle='#d4af37';x.fillRect(10,-w/2-1,3,w+2)}              // cincin kuningan
+  if(t.lv>=3){x.fillStyle='#d4af37';x.fillRect(L-8,-w/2-1,3,w+2);x.fillStyle='#b3202a';x.fillRect(-9,-1.5,6,3)} // cincin 2 + tali merah
+  if(t.lv>=4){x.fillStyle='#b3202a';x.fillRect(14,-1,L-20,2);x.fillStyle='#fff';x.fillRect(L-2,-1.5,3,3)}       // ukiran naga merah
+  x.restore();
+}
+// Shogun: katana + topeng samurai yang berubah tiap level
+// Yari Ashigaru: tombak tembus, makin tinggi level makin panjang & mata tombaknya berubah
+function drawYari(t){
+  const l=t.lv,SL=[0,34,40,46,54][l],th=t.sw>0?Math.sin((1-t.sw/8)*Math.PI)*12:0,hx=SL+th;
+  x.save();x.translate(t.x,t.y);x.rotate(t.ang);
+  x.fillStyle='#5a3a1e';x.fillRect(-6+th,-1.5,SL+6,3);
+  if(l>=2){x.fillStyle='#b3202a';x.fillRect(SL-10+th,-2.5,5,5)}
+  x.fillStyle=l>=4?'#e8f4ff':l>=2?'#dfe6ee':'#bbb';
+  x.beginPath();x.moveTo(hx,-3.5);x.lineTo(hx+(l>=2?16:12),0);x.lineTo(hx,3.5);x.closePath();x.fill();
+  if(l>=3){x.fillRect(hx-2,-8,3,16)}
+  if(l>=4){x.fillStyle='#d4af37';x.fillRect(hx-6,-2.5,3,5);x.strokeStyle='rgba(120,200,255,.6)';x.lineWidth=2;x.beginPath();x.moveTo(hx,0);x.lineTo(hx+26,0);x.stroke()}
+  x.restore();
+}
+function dInfo(s){return S(s).name[s.lv]+' • Lv '+s.lv+' • Maks pasukan '+S(s).cap[s.lv]+' • HP prajurit '+S(s).hp[s.lv]+' • Panggil tiap '+(S(s).rate[s.lv]/60).toFixed(1)+' dtk'}
+// Daimyo: kabuto bulan sabit, kipas komando, panji; tidak menyerang, hanya memanggil pasukan
+function drawDaimyo(t){
+  const l=t.lv,X=t.x,Y=t.y,pl=t.sw>0?t.sw/14:0,fw=12+l*2;
+  if(pl>0){x.strokeStyle='rgba(255,213,79,'+pl+')';x.lineWidth=3;x.beginPath();x.arc(X,Y,18+(1-pl)*22,0,7);x.stroke()}
+  x.fillStyle='#5a3a1e';x.fillRect(X+14,Y-32,2,38);
+  x.fillStyle=l>=3?'#d4af37':'#b3202a';x.fillRect(X+16,Y-32,fw,fw);
+  x.fillStyle='#fff';x.beginPath();x.arc(X+16+fw/2,Y-32+fw/2,3,0,7);x.fill();
+  x.fillStyle='#2a2a2a';x.beginPath();x.arc(X,Y-3,12,Math.PI,0);x.fill();x.fillRect(X-14,Y-4,28,3);
+  x.strokeStyle='#ffd54f';x.lineWidth=l>=3?3:2;x.beginPath();x.arc(X,Y-12,8+l*1.5,Math.PI*1.15,Math.PI*1.85);x.stroke();
+  x.fillStyle='#e9d5b8';x.beginPath();x.moveTo(X-10,Y-3);x.lineTo(X+10,Y-3);x.lineTo(X+7,Y+10);x.lineTo(X-7,Y+10);x.closePath();x.fill();
+  x.fillStyle='#111';x.fillRect(X-7,Y,5,2);x.fillRect(X+2,Y,5,2);x.fillRect(X-3,Y+6,6,1.5);
+  x.fillStyle='#b3202a';x.beginPath();x.arc(X-16,Y+4,6,0,7);x.fill();x.fillStyle='#fff';x.beginPath();x.arc(X-16,Y+4,2.2,0,7);x.fill();
+  x.fillStyle='#ffd54f';for(let i=0;i<l;i++){x.beginPath();x.arc(X-(l-1)*3+i*6,Y+24,2,0,7);x.fill()}
+}
+function drawKatana(t){
+  const l=t.lv,R=ST.s.range[l];
+  if(t.sw>0){x.strokeStyle=l>=4?'rgba(255,112,67,'+t.sw/9+')':'rgba(255,255,255,'+t.sw/9+')';x.lineWidth=5+l;x.beginPath();x.arc(t.x,t.y,R*.8,t.ang-1.2,t.ang+1.2);x.stroke()}
+  if(l>=4){x.fillStyle='rgba(255,80,40,.18)';x.beginPath();x.arc(t.x,t.y,26,0,7);x.fill()}
+  const a=t.ang+(t.sw>0?(t.sw/9-.5)*1.8:0),BL=[0,26,32,38,46][l];
+  x.save();x.translate(t.x,t.y);x.rotate(a);
+  x.fillStyle='#2a1a12';x.fillRect(4,-2,10,4);
+  x.fillStyle='#b3202a';x.fillRect(6,-2,2,4);x.fillRect(10,-2,2,4);
+  x.fillStyle='#d4af37';x.fillRect(14,-4,3,8);
+  x.fillStyle=['','#ddd','#e6efff','#bfe6ff','#fff'][l];x.fillRect(17,-1.5,BL,3);
+  if(l>=3){x.fillStyle=l>=4?'rgba(255,120,60,.6)':'rgba(120,200,255,.5)';x.fillRect(17,-3,BL,6)}
+  x.restore();
+  drawMask(t);
+}
+function drawMask(t){
+  const l=t.lv,X=t.x,Y=t.y,hy=l>=4?6:0;
+  x.fillStyle=l>=4?'#1a1a1a':'#3a3a3a';x.beginPath();x.arc(X,Y-3,12,Math.PI,0);x.fill();x.fillRect(X-14,Y-4,28,3);   // kabuto
+  if(l===1){x.fillStyle='#d4af37';x.fillRect(X-1,Y-19,2,7)}
+  if(l>=2){x.strokeStyle=l>=3?'#ffd54f':'#d4af37';x.lineWidth=l>=4?3:2;   // tanduk
+    for(const sg of[-1,1]){x.beginPath();x.moveTo(X+sg*5,Y-13);x.quadraticCurveTo(X+sg*12,Y-24-hy,X+sg*17,Y-20-hy);x.stroke()}}
+  x.fillStyle=['','#c9c2b0','#aab4c0','#8a1e1e','#d02020'][l];   // wajah (menpō)
+  x.beginPath();x.moveTo(X-10,Y-3);x.lineTo(X+10,Y-3);x.lineTo(X+7,Y+11);x.lineTo(X-7,Y+11);x.closePath();x.fill();
+  x.fillStyle=l>=4?'#ffeb3b':'#111';x.fillRect(X-7,Y,5,2.5);x.fillRect(X+2,Y,5,2.5);
+  if(l>=3){x.fillStyle='#fff';for(let i=-1;i<=1;i++){x.beginPath();x.moveTo(X+i*4-1.5,Y+7);x.lineTo(X+i*4+1.5,Y+7);x.lineTo(X+i*4,Y+11);x.fill()}}
+  else{x.fillStyle='#222';x.fillRect(X-4,Y+7,8,1.5)}
+  x.fillStyle='#ffd54f';for(let i=0;i<l;i++){x.beginPath();x.arc(X-(l-1)*3+i*6,Y+23,2,0,7);x.fill()}
+}
+function draw(){
+  x.setTransform(c.width/W,0,0,c.height/H,0,0);x.fillStyle='#3b4a2f';x.fillRect(0,0,W,H);
+  x.lineCap='round';x.lineJoin='round';
+  for(const pa of MP.paths){x.strokeStyle='#b99a6b';x.lineWidth=44;x.beginPath();x.moveTo(pa.P[0][0],pa.P[0][1]);for(const p of pa.P)x.lineTo(p[0],p[1]);x.stroke()}
+  for(const pa of MP.paths){x.strokeStyle='#d2b88a';x.lineWidth=36;x.beginPath();x.moveTo(pa.P[0][0],pa.P[0][1]);for(const p of pa.P)x.lineTo(p[0],p[1]);x.stroke()}
+  for(const pa of MP.paths){const e=pa.P[pa.P.length-1];x.fillStyle='#b3202a';x.fillRect(W-14,e[1]-22,14,44);x.fillStyle='#fff';x.font='bold 11px system-ui,sans-serif';x.textAlign='right';x.fillText('FINISH',W-18,e[1]-28)}
+  for(const t of g.t){
+    if(t===g.sel||(g.build&&false)){x.fillStyle='rgba(255,255,255,.12)';x.beginPath();x.arc(t.x,t.y,S(t).range[t.lv],0,7);x.fill();x.strokeStyle='#fff8';x.lineWidth=1.5;x.stroke()}
+    x.fillStyle=t.type==='s'?['','#7a1f1f','#3a2a5a','#1f4a4a','#111'][t.lv]:t.type==='y'?['','#4a6b3a','#3f7a5a','#2f6a7a','#2a4a8a'][t.lv]:t.type==='d'?['','#5a2a6a','#6a2a7a','#7a2a6a','#8a1a5a'][t.lv]:t.type==='o'?['','#444','#555','#6a4a2a','#8a6a1a'][t.lv]:t.type==='h'?['','#8a6a2a','#9a7a2a','#b08a2a','#d4af37'][t.lv]:['','#6b4a2b','#5a6a7a','#2f3b52','#a8841c'][t.lv];x.beginPath();x.arc(t.x,t.y,t.type==='s'?17:t.type==='d'?18:15,0,7);x.fill();
+    if(t.lv>=4){x.strokeStyle='#ffd54f';x.lineWidth=2.5;x.beginPath();x.arc(t.x,t.y,19,0,7);x.stroke()}
+    if(t.type==='a'||t.type==='y'){x.fillStyle='#b3202a';x.beginPath();x.arc(t.x,t.y,9,0,7);x.fill()}
+    t.type==='s'?drawKatana(t):t.type==='y'?drawYari(t):t.type==='d'?drawDaimyo(t):t.type==='o'?drawCannon(t):t.type==='h'?drawSohei(t):drawGun(t);
+    if(t.stun>0){x.fillStyle='rgba(255,235,59,.35)';x.beginPath();x.arc(t.x,t.y,20,0,7);x.fill();x.fillStyle='#fff176';x.font='bold 14px system-ui,sans-serif';x.textAlign='center';x.fillText('⚡',t.x,t.y-22)}
+    x.fillStyle='#fff';x.font='bold 10px system-ui,sans-serif';x.textAlign='center';if(t.type==='a'||t.type==='y')x.fillText(t.lv,t.x,t.y+3.5);
+  }
+  for(const z of g.z){
+    const[zx,zy]=at(z.d,z.pi),r=z.r;x.globalAlpha=(z.hid&&!z.vis)?.16:1;
+    x.fillStyle=z.hit>0?'#fff':(z.rage?'#c0392b':z.col);x.beginPath();x.arc(zx,zy,r,0,7);x.fill();if(z.k==='s'){x.strokeStyle='#2a3144';x.lineWidth=3;x.stroke()}
+    if(z.k==='b'){x.fillStyle='#222';x.fillRect(zx-r*.6,zy+r*.2,r*1.2,3);x.strokeStyle='#222';x.lineWidth=2;x.beginPath();x.moveTo(zx,zy-r);x.lineTo(zx+4,zy-r-7);x.stroke();x.fillStyle=Date.now()%300<150?'#ffeb3b':'#ff5722';x.beginPath();x.arc(zx+4,zy-r-8,3,0,7);x.fill()}
+    if(z.k==='a'){x.strokeStyle='#ecf0f1';x.lineWidth=3;x.beginPath();x.arc(zx,zy,r,Math.PI,0);x.stroke()}
+    if(z.k==='r'||z.k==='m'){x.fillStyle='#fff';x.fillRect(zx-1.5,zy+2,3,8);x.fillRect(zx-4,zy+4.5,8,3)}
+    if(z.k==='x'){x.strokeStyle='#2c0b0b';x.lineWidth=2;x.beginPath();x.moveTo(zx,zy-r);x.lineTo(zx,zy+r);x.stroke()}
+    if(z.mega){x.strokeStyle='#ff1744';x.lineWidth=3;x.beginPath();x.arc(zx,zy,r+5,0,7);x.stroke()}
+    if(z.k==='h'&&z.vis){x.setLineDash([4,3]);x.strokeStyle='#e0d4ff';x.lineWidth=2;x.stroke();x.setLineDash([])}
+    if(z.boss){x.fillStyle='#b3202a';x.beginPath();x.moveTo(zx-r,zy-r*.4);x.lineTo(zx,zy-r*1.5);x.lineTo(zx+r,zy-r*.4);x.fill()}
+    x.fillStyle=g.dm.eye;x.beginPath();x.arc(zx-r*.35,zy-r*.1,2,0,7);x.arc(zx+r*.35,zy-r*.1,2,0,7);x.fill();
+    x.fillStyle='#000a';x.fillRect(zx-r,zy-r-9,r*2,4);x.fillStyle='#e53935';x.fillRect(zx-r,zy-r-9,r*2*Math.max(0,z.hp)/z.max,4);
+  }
+  x.globalAlpha=1;
+  for(const u of g.u){
+    const[ux,uy]=at(Math.max(0,u.d),u.pi),[qx,qy]=at(Math.max(0,u.d-6),u.pi),a=Math.atan2(qy-uy,qx-ux),L=9+(u.lv>=2?5:0)+(u.sw>0?6:0);
+    x.strokeStyle=u.lv>=3?'#eee':'#8a5a2a';x.lineWidth=2;x.beginPath();x.moveTo(ux,uy);x.lineTo(ux+Math.cos(a)*L,uy+Math.sin(a)*L);x.stroke();
+    x.fillStyle=u.hit>0?'#fff':['','#7d8a6a','#4a8a5a','#a32a2a','#d4af37'][u.lv];x.beginPath();x.arc(ux,uy,7,0,7);x.fill();
+    x.fillStyle=u.lv>=3?'#2a2a2a':'#caa86a';x.beginPath();x.moveTo(ux-8,uy-1);x.lineTo(ux,uy-9);x.lineTo(ux+8,uy-1);x.fill();
+    x.fillStyle='#000a';x.fillRect(ux-8,uy-14,16,3);x.fillStyle='#4caf50';x.fillRect(ux-8,uy-14,16*Math.max(0,u.hp)/u.max,3);
+  }
+  drawGeneral();
+  for(const p of g.ps){x.globalAlpha=Math.min(1,p.t/12);x.fillStyle=p.c;x.fillRect(p.x-1.5,p.y-1.5,3,3)}
+  x.textAlign='center';
+  for(const f of g.fl){x.globalAlpha=Math.min(1,f.t/15);x.font='bold '+(f.v>=10?16:13)+'px system-ui,sans-serif';x.lineWidth=3;x.strokeStyle='#000';x.strokeText(f.v,f.x,f.y);x.fillStyle=f.v>=10?'#ffd54f':'#fff';x.fillText(f.v,f.x,f.y)}
+  x.globalAlpha=1;
+  for(const f of g.fx){x.strokeStyle='rgba(255,140,40,'+f.t/30+')';x.lineWidth=4;x.beginPath();x.arc(f.x,f.y,(f.r||120)*(1-f.t/30)+10,0,7);x.stroke()}
+  for(const s of g.shots){
+    x.strokeStyle='rgba(255,220,100,'+(s.t/7)+')';x.lineWidth=2;x.beginPath();x.moveTo(s.x1,s.y1);x.lineTo(s.x2,s.y2);x.stroke();
+    x.fillStyle='rgba(200,200,200,'+(s.t/10)+')';x.beginPath();x.arc(s.x1+Math.cos(s.a)*s.gl,s.y1+Math.sin(s.a)*s.gl,(8-s.t)*1.6+3,0,7);x.fill();
+  }
+  if(g.build&&mx>0){
+    const ok=valid(mx,my)&&g.gold>=ST[g.build].cost;
+    x.fillStyle=ok?'rgba(255,255,255,.15)':'rgba(229,57,53,.2)';x.beginPath();x.arc(mx,my,ST[g.build].range[1],0,7);x.fill();
+    x.fillStyle=ok?'#6b4a2b':'#e53935';x.globalAlpha=.7;x.beginPath();x.arc(mx,my,15,0,7);x.fill();x.globalAlpha=1;
+  }
+  if(g.msg&&!g.over){x.globalAlpha=Math.min(1,g.msg.t/40);x.fillStyle='rgba(0,0,0,.5)';x.fillRect(0,H/2-52,W,86);x.textAlign='center';x.fillStyle=g.msg.c||'#fff';x.font='bold 34px system-ui,sans-serif';x.fillText(g.msg.a,W/2,H/2-8);x.font='16px system-ui,sans-serif';x.fillStyle='#ddd';x.fillText(g.msg.b,W/2,H/2+20);x.globalAlpha=1}
+  if(!g.running&&g.autoT>0&&!g.over){x.textAlign='center';x.fillStyle='rgba(0,0,0,.55)';x.fillRect(W/2-160,H/2+50,320,30);x.fillStyle='#ffd54f';x.font='bold 15px system-ui,sans-serif';x.fillText('Gelombang '+(g.wave+1)+' mulai dalam '+Math.ceil(g.autoT/60)+' dtk',W/2,H/2+71)}
+  if(g.over){x.fillStyle='#000b';x.fillRect(0,0,W,H);x.fillStyle=g.res.c;x.font='bold 40px system-ui,sans-serif';x.textAlign='center';x.fillText(g.res.a,W/2,H/2-10);x.fillStyle='#fff';x.font='18px system-ui,sans-serif';x.fillText(g.res.b,W/2,H/2+25)}
+}
+let last=0,acc=0;
+function loop(t){acc+=Math.min(t-last,100)*speed;last=t;while(acc>=16.67){if(!g.over&&!paused)update();acc-=16.67}draw();requestAnimationFrame(loop)}
+reset();paused=true;renderHome();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
